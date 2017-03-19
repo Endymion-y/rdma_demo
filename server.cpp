@@ -8,7 +8,7 @@
 
 const int MSGSIZ = 1024;
 
-int main(){
+int main(int argc, char* argv[]){
 	int ret;
 
 	// --------------- Setup Phase ---------------
@@ -49,7 +49,7 @@ int main(){
 		// ------------- Agent Setup -------------
 		// Allocate memory and register
 		void* msg = malloc(MSGSIZ);
-		struct ibv_mr* mr = rdma_reg_msgs(conn_id, mem, MSGSIZ);
+		struct ibv_mr* mr = rdma_reg_msgs(conn_id, msg, MSGSIZ);
 		// Define properties of new connection
 		struct rdma_conn_param conn_param;
 		// Finalize connection with client
