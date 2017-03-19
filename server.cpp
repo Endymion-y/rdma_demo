@@ -3,6 +3,11 @@
 #include <memory>
 #include <cstdio>
 
+#include <rdma/rdma_cma.h>
+#include <rdma/rdma_verbs.h>
+
+const int MSGSIZ = 1024;
+
 int main(){
 	int ret;
 
@@ -14,7 +19,7 @@ int main(){
 	struct rdma_addrinfo* res;
 
 	memset(&hints, 0, sizeof(hints));
-	hints.ai_flags = RAI_PASSIVE;
+	hints.ai_flags = RAI_PASSIVE;          // Server
 	hints.ai_port_space = RDMA_PS_TCP;
 	ret = rdma_getaddrinfo(node, service, &hints, &res);
 
@@ -28,8 +33,8 @@ int main(){
 	qp_init_attr.cap.max_recv_wr = 1;
 	qp_init_attr.cap.max_send_sge = 1;
 	qp_init_attr.cap.max_recv_sge = 1;
-	qp_init_attr.cap.max_inline_data = 16;
-	qp_init_attr.sq_sig_all = 1;
+	qp_init_attr.cap.max_inline_data = MSGSIZ;
+	qp_init_attr.sq_sig_all = 1;       // Whether send generates CQE
 	ret = rdma_create_ep(&id, res, NULL, &qp_init_attr);
 
 	// Establish socket as listener
@@ -43,7 +48,6 @@ int main(){
 
 		// ------------- Agent Setup -------------
 		// Allocate memory and register
-		int MSGSIZ = 1024;
 		void* msg = malloc(MSGSIZ);
 		struct ibv_mr* mr = rdma_reg_msgs(conn_id, mem, MSGSIZ);
 		// Define properties of new connection
@@ -52,14 +56,17 @@ int main(){
 		rdma_accept(conn_id, NULL);
 
 		// ------------- Agent Use ---------------
+		struct ibv_wc wc;      // CQE array with length 1
 		// Post receive
-		rdma_post_recv(conn_id, NULL, msg, MSGSIZ, mr);
+		ret = rdma_post_recv(conn_id, NULL, msg, MSGSIZ, mr);
 		// Wait to receive ping data
-		ibv_poll_cq();
+		while ((ret = ibv_poll_cq(conn_id->recv_cq, 1, &wc)) <= 0)
+			/* Waiting */ ;
 		// Post send
-		rdma_post_send(conn_id, NULL, msg, MSGSIZ, mr);
+		ret = rdma_post_send(conn_id, NULL, msg, MSGSIZ, mr, 0);
 		// Wait for send to complete
-		ibv_poll_cq();
+		while ((ret = ibv_poll_cq(conn_id->send_cq, 1, &wc)) <= 0)
+			/* Waiting */ ;
 
 		// -------- Agent Break-down -------------
 		// Break connection

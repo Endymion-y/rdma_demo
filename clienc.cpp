@@ -2,6 +2,9 @@
 #include <iostream>
 #include <cstdio>
 
+#include <rdma/rdma_cma.h>
+#include <rdma/rdma_verbs.h>
+
 int main(int argc, char* argv[]){
 	int ret;
 
@@ -30,10 +33,17 @@ int main(int argc, char* argv[]){
 
 	// --------------- Use Phase ---------------
 	// Actually transfer data to/from the remote side
+	struct ibv_wc wc;
+	sprintf((char*)msg, "Hello, world");
+	printf("Message sent: %s\n", (char*)msg);
+
 	ret = rdma_post_send(id, NULL, msg, MSGSIZ, mr, 0);
-	ibv_poll_cq();
+	while ((ret = ibv_poll_cq(id->send_cq, 1, &wc)) <= 0)
+		/* Waiting */ ;
 	ret = rdma_post_recv(id, NULL, msg, MSGSIZ, mr);
-	ibv_poll_cq();
+	while ((ret = ibv_poll_cq(id->recv_cq, 1, &wc)) <= 0)
+		/* Waiting */ ;
+	printf("Message received: %s\n", (char*)msg);
 
 	// ------------ Break-down Phase ------------
 	// Close connection, free memory and communication resources
