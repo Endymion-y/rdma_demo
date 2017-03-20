@@ -70,7 +70,7 @@ int main(int argc, char* argv[]){
 	while ((ret = ibv_poll_cq(id->recv_cq, 1, &wc)) == 0)
 		/* Waiting */ ;
 	auto end = chrono::system_clock::now();
-	auto duration = chrono::duration_cast<microseconds>(end - start);
+	auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
 	if (ret < 0) perror("ibv_poll_cq");
 	printf("Message received: %s\n", (char*)msg);
 	cout << "Time elapsed: " << duration.count() << "us" << endl;
