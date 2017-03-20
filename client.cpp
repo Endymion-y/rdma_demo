@@ -13,9 +13,12 @@ using namespace std;
 const int MSGSIZ = 128;
 
 int main(int argc, char* argv[]){
+	if (argc != 3){
+		cout << "Usage: ./client IP port" << endl;
+		return 0;
+	}
 	int ret;
 
-	// --------------- Setup Phase ---------------
 	// Obtain and convert addressing information
 	char* IP = argv[1];        
 	char* port = argv[2];     
@@ -23,8 +26,11 @@ int main(int argc, char* argv[]){
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_port_space = RDMA_PS_TCP;
 	struct rdma_addrinfo* res;
-	if ((ret = rdma_getaddrinfo(IP, port, &hints, &res)))
+
+	if ((ret = rdma_getaddrinfo(IP, port, &hints, &res)) < 0){
 		perror("rdma_getaddrinfo");
+		exit(-1);
+	}
 	assert(res);
 
 	// Create and configure local endpoints for communication
@@ -39,8 +45,10 @@ int main(int argc, char* argv[]){
 	qp_init_attr.cap.max_inline_data = MSGSIZ;
 	qp_init_attr.qp_context = id;
 	qp_init_attr.sq_sig_all = true;
-	if ((ret = rdma_create_ep(&id, res, NULL, &qp_init_attr)))
+	if ((ret = rdma_create_ep(&id, res, NULL, &qp_init_attr)) < 0){
 		perror("rdma_create_ep");
+		exit(-1);
+	}	
 	assert(id);
 
 	// Setup local memory to be used in transfer
@@ -50,32 +58,48 @@ int main(int argc, char* argv[]){
 
 	// Establish the connection with the remote side
 	// struct rdma_conn_param conn_param;
-	if ((ret = rdma_connect(id, NULL)))
+	if ((ret = rdma_connect(id, NULL)) < 0){
 		perror("rdma_connect");
+		exit(-1);
+	}
 
-	// --------------- Use Phase ---------------
 	// Actually transfer data to/from the remote side
 	struct ibv_wc wc;
 	sprintf((char*)msg, "Hello, world");
-	printf("Message sent: %s\n", (char*)msg);
+	// printf("Message sent: %s\n", (char*)msg);
 
-	if ((ret = rdma_post_send(id, NULL, msg, MSGSIZ, mr, 0)))
-		perror("rdma_post_send");
-	while ((ret = ibv_poll_cq(id->send_cq, 1, &wc)) == 0)
-		/* Waiting */ ;
-	auto start = chrono::system_clock::now();
-	if (ret < 0) perror("ibv_poll_cq");
-	if ((ret = rdma_post_recv(id, NULL, msg, MSGSIZ, mr)))
-		perror("rdma_post_recv");
-	while ((ret = ibv_poll_cq(id->recv_cq, 1, &wc)) == 0)
-		/* Waiting */ ;
-	auto end = chrono::system_clock::now();
-	auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
-	if (ret < 0) perror("ibv_poll_cq");
-	printf("Message received: %s\n", (char*)msg);
-	cout << "Time elapsed: " << duration.count() << "us" << endl;
+	while (true){
+		// Post send
+		if ((ret = rdma_post_send(id, NULL, msg, MSGSIZ, mr, 0)) < 0){
+			perror("rdma_post_send");
+			exit(-1);
+		}
+		while ((ret = ibv_poll_cq(id->send_cq, 1, &wc)) == 0)
+			/* Waiting */ ;
+		if (ret < 0) {
+			perror("ibv_poll_cq");
+			exit(-1);
+		}
+		auto start = chrono::system_clock::now();
+		cout << "Message sent: " << (char*)msg << endl;
 
-	// ------------ Break-down Phase ------------
+		// Post receive
+		if ((ret = rdma_post_recv(id, NULL, msg, MSGSIZ, mr)) < 0){
+			perror("rdma_post_recv");
+			exit(-1);
+		}
+		while ((ret = ibv_poll_cq(id->recv_cq, 1, &wc)) == 0)
+			/* Waiting */ ;
+		if (ret < 0){
+			perror("ibv_poll_cq");
+			exit(-1);
+		}
+		auto end = chrono::system_clock::now();
+		auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
+		cout << "Message received: " << (char*)msg << endl;
+		cout << "Time elapsed: " << duration.count() << "us" << endl;
+	}
+
 	// Close connection, free memory and communication resources
 	if ((ret = rdma_disconnect(id)))
 		perror("rdma_disconnect");
