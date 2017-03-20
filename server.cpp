@@ -90,8 +90,7 @@ int main(int argc, char* argv[]){
 		// Free memory
 		free(msg);
 		// Destroy local end point
-		if ((ret = rdma_destroy_ep(conn_id)))
-			perror("rdma_destroy_ep");
+		rdma_destroy_ep(conn_id);
 	}
 
 	// ------------ Break-down Phase ------------
