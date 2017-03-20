@@ -65,10 +65,12 @@ int main(int argc, char* argv[]){
 
 	// Actually transfer data to/from the remote side
 	struct ibv_wc wc;
-	sprintf((char*)msg, "Hello, world");
+	// sprintf((char*)msg, "Hello, world");
 	// printf("Message sent: %s\n", (char*)msg);
+	int cnt = 0;
 
 	while (true){
+		sprintf((char*)msg, "Hello, world %d", ++cnt);
 		// Post send
 		if ((ret = rdma_post_send(id, NULL, msg, MSGSIZ, mr, 0)) < 0){
 			perror("rdma_post_send");
@@ -82,6 +84,7 @@ int main(int argc, char* argv[]){
 		}
 		auto start = chrono::system_clock::now();
 		cout << "Message sent: " << (char*)msg << endl;
+		ibv_ack_cq_events(id->send_cq, 1);
 
 		// Post receive
 		if ((ret = rdma_post_recv(id, NULL, msg, MSGSIZ, mr)) < 0){
@@ -98,6 +101,7 @@ int main(int argc, char* argv[]){
 		auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
 		cout << "Message received: " << (char*)msg << endl;
 		cout << "Time elapsed: " << duration.count() << "us" << endl;
+		ibv_ack_cq_events(id->recv_cq, 1);
 	}
 
 	// Close connection, free memory and communication resources

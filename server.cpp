@@ -7,6 +7,7 @@
 
 #include <rdma/rdma_cma.h>
 #include <rdma/rdma_verbs.h>
+using namespace std;
 
 const int MSGSIZ = 128;
 
@@ -84,32 +85,36 @@ int main(int argc, char* argv[]){
 		struct ibv_wc recv_wc;      // CQE array with length 1
 		struct ibv_wc send_wc;
 
-		// Post receive
-		if ((ret = rdma_post_recv(conn_id, NULL, recv_msg, MSGSIZ, recv_mr)) < 0){
-			perror("rdma_post_recv");
-			exit(-1);
-		}
-			
 		while (true){
+			// Post recv
+			if ((ret = rdma_post_recv(conn_id, NULL, recv_msg, MSGSIZ, recv_mr)) < 0){
+				perror("rdma_post_recv");
+				exit(-1);
+			}
 			while ((ret = ibv_poll_cq(conn_id->recv_cq, 1, &recv_wc)) == 0)
 				/* Waiting */ ;
 			if (ret < 0) {
 				perror("ibv_poll_cq");
 				exit(-1);
 			}
+			cout << "Message received: " << (char*)recv_msg << endl;
 			// Copy message
 			memcpy(send_msg, recv_msg, MSGSIZ);
+			ibv_ack_cq_events(conn_id->recv_cq, 1);
+
 			// Post send
 			if ((ret = rdma_post_send(conn_id, NULL, send_msg, MSGSIZ, send_mr, 0)) < 0){
 				perror("rdma_post_send");
 				exit(-1);
 			}
-			// No waiting for send completion?
-			// Post receive
-			if ((ret = rdma_post_recv(conn_id, NULL, recv_msg, MSGSIZ, recv_mr)) < 0){
-				perror("rdma_post_recv");
+			while ((ret = ibv_poll_cq(conn_id->send_cq, 1, &send_wc)) == 0)
+				/* Waiting */ ;
+			if (ret < 0) {
+				perror("ibv_poll_cq");
 				exit(-1);
 			}
+			cout << "Message sent: " << (char*)send_msg << endl;
+			ibv_ack_cq_events(conn_id->send_cq, 1);
 		}
 
 		// Break connection
