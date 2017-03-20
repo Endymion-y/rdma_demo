@@ -4,9 +4,11 @@
 #include <cstdlib>
 #include <netdb.h>
 #include <memory>
+#include <chrono>
 
 #include <rdma/rdma_cma.h>
 #include <rdma/rdma_verbs.h>
+using namespace std;
 
 const int MSGSIZ = 128;
 
@@ -61,13 +63,17 @@ int main(int argc, char* argv[]){
 		perror("rdma_post_send");
 	while ((ret = ibv_poll_cq(id->send_cq, 1, &wc)) == 0)
 		/* Waiting */ ;
+	auto start = chrono::system_clock::now();
 	if (ret < 0) perror("ibv_poll_cq");
 	if ((ret = rdma_post_recv(id, NULL, msg, MSGSIZ, mr)))
 		perror("rdma_post_recv");
 	while ((ret = ibv_poll_cq(id->recv_cq, 1, &wc)) == 0)
 		/* Waiting */ ;
+	auto end = chrono::system_clock::now();
+	auto duration = chrono::duration_cast<microseconds>(end - start);
 	if (ret < 0) perror("ibv_poll_cq");
 	printf("Message received: %s\n", (char*)msg);
+	cout << "Time elapsed: " << duration.count() << "us" << endl;
 
 	// ------------ Break-down Phase ------------
 	// Close connection, free memory and communication resources
