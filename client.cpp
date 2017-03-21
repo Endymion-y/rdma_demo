@@ -82,8 +82,9 @@ int main(int argc, char* argv[]){
 			perror("ibv_poll_cq");
 			exit(-1);
 		}
-		auto start = chrono::system_clock::now();
+#ifdef LOGGING
 		cout << "Message sent: " << (char*)msg << endl;
+#endif
 		ibv_ack_cq_events(id->send_cq, 1);
 
 		// Post receive
@@ -97,10 +98,9 @@ int main(int argc, char* argv[]){
 			perror("ibv_poll_cq");
 			exit(-1);
 		}
-		auto end = chrono::system_clock::now();
-		auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
+#ifdef LOGGING
 		cout << "Message received: " << (char*)msg << endl;
-		cout << "Time elapsed: " << duration.count() << "us" << endl;
+#endif
 		ibv_ack_cq_events(id->recv_cq, 1);
 	}
 

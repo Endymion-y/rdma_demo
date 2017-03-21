@@ -97,7 +97,9 @@ int main(int argc, char* argv[]){
 				perror("ibv_poll_cq");
 				exit(-1);
 			}
+#ifdef LOGGING
 			cout << "Message received: " << (char*)recv_msg << endl;
+#endif
 			// Copy message
 			memcpy(send_msg, recv_msg, MSGSIZ);
 			ibv_ack_cq_events(conn_id->recv_cq, 1);
@@ -113,7 +115,9 @@ int main(int argc, char* argv[]){
 				perror("ibv_poll_cq");
 				exit(-1);
 			}
+#ifdef LOGGING
 			cout << "Message sent: " << (char*)send_msg << endl;
+#endif
 			ibv_ack_cq_events(conn_id->send_cq, 1);
 		}
 
