@@ -9,8 +9,6 @@
 #include <rdma/rdma_verbs.h>
 using namespace std;
 
-#define CPU_FRIENDLY
-
 const int MSGSIZ = 128;
 
 int main(int argc, char* argv[]){
@@ -93,10 +91,8 @@ int main(int argc, char* argv[]){
 				perror("rdma_post_recv");
 				exit(-1);
 			}
-			while ((ret = ibv_poll_cq(conn_id->recv_cq, 1, &recv_wc)) == 0)
-				/* Waiting */ ;
-			if (ret < 0) {
-				perror("ibv_poll_cq");
+			if ((ret = rdma_get_recv_comp(conn_id, &recv_wc)) < 0){
+				perror("rdma_get_recv_comp");
 				exit(-1);
 			}
 #ifdef LOGGING
@@ -111,10 +107,8 @@ int main(int argc, char* argv[]){
 				perror("rdma_post_send");
 				exit(-1);
 			}
-			while ((ret = ibv_poll_cq(conn_id->send_cq, 1, &send_wc)) == 0)
-				/* Waiting */ ;
-			if (ret < 0) {
-				perror("ibv_poll_cq");
+			if ((ret = rdma_get_send_comp(conn_id, &send_wc)) < 0){
+				perror("rdma_get_send_comp");
 				exit(-1);
 			}
 #ifdef LOGGING

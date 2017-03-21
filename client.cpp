@@ -76,10 +76,8 @@ int main(int argc, char* argv[]){
 			perror("rdma_post_send");
 			exit(-1);
 		}
-		while ((ret = ibv_poll_cq(id->send_cq, 1, &wc)) == 0)
-			/* Waiting */ ;
-		if (ret < 0) {
-			perror("ibv_poll_cq");
+		if ((ret = rdma_get_send_comp(id, &wc)) < 0){
+			perror("rdma_get_send_comp");
 			exit(-1);
 		}
 #ifdef LOGGING
@@ -92,10 +90,8 @@ int main(int argc, char* argv[]){
 			perror("rdma_post_recv");
 			exit(-1);
 		}
-		while ((ret = ibv_poll_cq(id->recv_cq, 1, &wc)) == 0)
-			/* Waiting */ ;
-		if (ret < 0){
-			perror("ibv_poll_cq");
+		if ((ret = rdma_get_recv_comp(id, &wc)) < 0){
+			perror("rdma_get_recv_comp");
 			exit(-1);
 		}
 #ifdef LOGGING
