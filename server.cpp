@@ -9,6 +9,8 @@
 #include <rdma/rdma_verbs.h>
 using namespace std;
 
+#define CPU_FRIENDLY
+
 const int MSGSIZ = 128;
 
 int main(int argc, char* argv[]){
