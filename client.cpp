@@ -5,10 +5,13 @@
 #include <netdb.h>
 #include <memory>
 #include <chrono>
+#include <unistd.h>
 
 #include <rdma/rdma_cma.h>
 #include <rdma/rdma_verbs.h>
 using namespace std;
+
+#define LOGGING
 
 const int MSGSIZ = 128;
 
@@ -85,7 +88,6 @@ int main(int argc, char* argv[]){
 #ifdef LOGGING
 		cout << "Message sent: " << (char*)msg << endl;
 #endif
-		ibv_ack_cq_events(id->send_cq, 1);
 
 		// Post receive
 		if ((ret = rdma_post_recv(id, NULL, msg, MSGSIZ, mr)) < 0){
@@ -101,14 +103,19 @@ int main(int argc, char* argv[]){
 #ifdef LOGGING
 		cout << "Message received: " << (char*)msg << endl;
 #endif
-		ibv_ack_cq_events(id->recv_cq, 1);
+		sleep(1);
+		if (cnt >= 20) break;
 	}
 
 	// Close connection, free memory and communication resources
-	if ((ret = rdma_disconnect(id)))
+	if ((ret = rdma_disconnect(id)) < 0){
 		perror("rdma_disconnect");
-	if ((ret = rdma_dereg_mr(mr)))
+		exit(-1);
+	}
+	if ((ret = rdma_dereg_mr(mr)) < 0){
 		perror("rdma_dereg_mr");
+		exit(-1);
+	}
 	free(msg);
 	rdma_freeaddrinfo(res);
 
