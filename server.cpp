@@ -33,35 +33,30 @@ void run(struct rdma_cm_id* conn_id){
 	struct ibv_wc recv_wc;      // CQE array with length 1
 	struct ibv_wc send_wc;
 
-	while (true){
-		// Post recv
-		if ((ret = rdma_post_recv(conn_id, NULL, recv_msg, MSGSIZ, recv_mr)) < 0){
-			perror("rdma_post_recv");
-			return;
-		}
-		if ((ret = rdma_get_recv_comp(conn_id, &recv_wc)) < 0){
-			perror("rdma_get_recv_comp");
-			return;
-		}
-#ifdef LOGGING
-		cout << "Message received: " << (char*)recv_msg << endl;
-#endif
-		// Copy message
-		memcpy(send_msg, recv_msg, MSGSIZ);
-
-		// Post send
-		if ((ret = rdma_post_send(conn_id, NULL, send_msg, MSGSIZ, send_mr, 0)) < 0){
-			perror("rdma_post_send");
-			return;
-		}
-		if ((ret = rdma_get_send_comp(conn_id, &send_wc)) < 0){
-			perror("rdma_get_send_comp");
-			return;
-		}
-#ifdef LOGGING
-		cout << "Message sent: " << (char*)send_msg << endl;
-#endif
+	// Send metadata
+	// sprintf((char*)send_msg, "%08x", recv_msg);
+	memcpy(send_msg, recv_mr, sizeof(struct ibv_mr));
+	if ((ret = rdma_post_send(conn_id, NULL, send_msg, MSGSIZ, send_mr, 0)) < 0){
+		perror("rdma_post_send");
+		return;
 	}
+
+	while ((ret = ibv_poll_cq(conn_id->send_cq, 1, &send_wr)) == 0){
+		/* Waiting */
+	}
+	if (ret < 0){
+		perror("ibv_poll_cq");
+		return;
+	}
+
+	while ((ret = ibv_poll_cq(conn_id->recv_cq, 1, &recv_wr)) == 0){
+		/* Waiting */
+	}
+	if (ret < 0){
+		perror("ibv_poll_cq");
+		return;
+	}
+	cout << "Message received: " << recv_msg << endl;
 
 	// Break connection
 	if ((ret = rdma_disconnect(conn_id)) < 0){

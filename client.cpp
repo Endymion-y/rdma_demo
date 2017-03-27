@@ -72,39 +72,23 @@ int main(int argc, char* argv[]){
 	// printf("Message sent: %s\n", (char*)msg);
 	int cnt = 0;
 
-	while (true){
-		sprintf((char*)msg, "Hello, world %d", ++cnt);
-		// Post send
-		if ((ret = rdma_post_send(id, NULL, msg, MSGSIZ, mr, 0)) < 0){
-			perror("rdma_post_send");
-			exit(-1);
-		}
-		while ((ret = ibv_poll_cq(id->send_cq, 1, &wc)) == 0)
-			/* Waiting */ ;
-		if (ret < 0) {
-			perror("ibv_poll_cq");
-			exit(-1);
-		}
-#ifdef LOGGING
-		cout << "Message sent: " << (char*)msg << endl;
-#endif
-
-		// Post receive
-		if ((ret = rdma_post_recv(id, NULL, msg, MSGSIZ, mr)) < 0){
-			perror("rdma_post_recv");
-			exit(-1);
-		}
-		while ((ret = ibv_poll_cq(id->recv_cq, 1, &wc)) == 0)
-			/* Waiting */ ;
-		if (ret < 0){
-			perror("ibv_poll_cq");
-			exit(-1);
-		}
-#ifdef LOGGING
-		cout << "Message received: " << (char*)msg << endl;
-#endif
-		sleep(1);
-		if (cnt >= 20) break;
+	if ((ret = rdma_post_recv(id, NULL, msg, MSGSIZ, mr)) < 0){
+		perror("rdma_post_recv");
+		exit(-1);
+	}
+	while ((ret = ibv_poll_cq(id->recv_cq, 1, &wc)) == 0){
+		/* Waiting */
+	}
+	if (ret < 0){
+		perror("ibv_poll_cq");
+		exit(-1);
+	}
+	struct ibv_mr server_mr;
+	memcpy(server_mr, msg, sizeof(struct ibv_mr));
+	sprintf(msg, "Hello, world %d", cnt);
+	if ((ret = rdma_post_write(id, NULL, msg, MSGSIZ, mr, 0, server_mr.addr, server_mr.rkey)) < 0){
+		perror("rdma_post_write");
+		exit(-1);
 	}
 
 	// Close connection, free memory and communication resources
