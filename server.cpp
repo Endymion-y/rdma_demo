@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <netdb.h>
 #include <thread>
+#include <unistd.h>
 
 #include <rdma/rdma_cma.h>
 #include <rdma/rdma_verbs.h>
@@ -18,30 +19,45 @@ void run(struct rdma_cm_id* conn_id){
 
 	// Allocate memory and register
 	void* recv_msg = malloc(MSGSIZ);
-	struct ibv_mr* recv_mr = rdma_reg_msgs(conn_id, recv_msg, MSGSIZ);
+	// struct ibv_mr* recv_mr = rdma_reg_msgs(conn_id, recv_msg, MSGSIZ);
+	struct ibv_mr* recv_mr = ibv_reg_mr(conn_id->pd, recv_msg, MSGSIZ, 
+			IBV_ACCESS_LOCAL_WRITE |
+			IBV_ACCESS_REMOTE_READ |
+			IBV_ACCESS_REMOTE_WRITE      // This is important
+			);
 	assert(recv_mr);
 	void* send_msg = malloc(MSGSIZ);
 	struct ibv_mr* send_mr = rdma_reg_msgs(conn_id, send_msg, MSGSIZ);
 	assert(send_mr);
 
+	sprintf((char*)recv_msg, "hehe");
+
+	// Post recv brfore connection established
+	if ((ret = rdma_post_recv(conn_id, NULL, recv_msg, MSGSIZ, recv_mr)) < 0){
+		perror("rdma_post_recv");
+		return;
+	}
+
 	// Finalize connection with client
-	// if ((ret = rdma_accept(conn_id, NULL)) < 0){
-	// 	perror("rdma_accept");
-	// 	return;
-	// }
+	if ((ret = rdma_accept(conn_id, NULL)) < 0){
+		perror("rdma_accept");
+		return;
+	}
 			
 	struct ibv_wc recv_wc;      // CQE array with length 1
 	struct ibv_wc send_wc;
 
 	// Send metadata
 	// sprintf((char*)send_msg, "%08x", recv_msg);
+	// cout << "Addr = " << recv_mr->addr << endl;
+	// cout << "rkey = " << recv_mr->rkey << endl;
 	memcpy(send_msg, recv_mr, sizeof(struct ibv_mr));
 	if ((ret = rdma_post_send(conn_id, NULL, send_msg, MSGSIZ, send_mr, 0)) < 0){
 		perror("rdma_post_send");
 		return;
 	}
 
-	while ((ret = ibv_poll_cq(conn_id->send_cq, 1, &send_wr)) == 0){
+	while ((ret = ibv_poll_cq(conn_id->send_cq, 1, &send_wc)) == 0){
 		/* Waiting */
 	}
 	if (ret < 0){
@@ -49,14 +65,15 @@ void run(struct rdma_cm_id* conn_id){
 		return;
 	}
 
-	while ((ret = ibv_poll_cq(conn_id->recv_cq, 1, &recv_wr)) == 0){
-		/* Waiting */
-	}
-	if (ret < 0){
-		perror("ibv_poll_cq");
-		return;
-	}
-	cout << "Message received: " << recv_msg << endl;
+	// memset(recv_msg, 0, MSGSIZ);
+	// if ((ret = rdma_post_recv(conn_id, NULL, recv_msg, MSGSIZ, recv_mr)) < 0){
+	// 	perror("rdma_post_recv");
+	// 	return;
+	// }
+
+	// WRITE does not notify the receiver
+	sleep(5);
+	cout << "Message received: " << (char*)recv_msg << endl;
 
 	// Break connection
 	if ((ret = rdma_disconnect(conn_id)) < 0){
@@ -77,6 +94,8 @@ void run(struct rdma_cm_id* conn_id){
 	free(send_msg);
 	// Destroy local end point
 	rdma_destroy_ep(conn_id);
+
+	cout << "Thread returning" << endl;
 }
 
 int main(int argc, char* argv[]){
@@ -134,11 +153,12 @@ int main(int argc, char* argv[]){
 			exit(-1);
 		}
 		cout << "Got a request" << endl;
-		// Finalize connection with client
+
+		/*// Finalize connection with client
 		if ((ret = rdma_accept(conn_id, NULL)) < 0){
 			perror("rdma_accept");
 			exit(-1);
-		}
+		}*/
 
 		// thread client(run, conn_id);
 		thread* client = new thread(run, conn_id);

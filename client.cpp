@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include <netdb.h>
 #include <memory>
 #include <chrono>
@@ -83,13 +84,20 @@ int main(int argc, char* argv[]){
 		perror("ibv_poll_cq");
 		exit(-1);
 	}
+	cout << "Message received" << endl;
 	struct ibv_mr server_mr;
-	memcpy(server_mr, msg, sizeof(struct ibv_mr));
-	sprintf(msg, "Hello, world %d", cnt);
-	if ((ret = rdma_post_write(id, NULL, msg, MSGSIZ, mr, 0, server_mr.addr, server_mr.rkey)) < 0){
+	memcpy(&server_mr, msg, sizeof(struct ibv_mr));
+	// cout << "Addr = " << server_mr.addr << endl;
+	// cout << "rkey = " << server_mr.rkey << endl;
+
+	sleep(3);
+	// Send
+	sprintf((char*)msg, "Hello, world %d", cnt);
+	if ((ret = rdma_post_write(id, NULL, msg, MSGSIZ, mr, 0, (uint64_t)server_mr.addr, server_mr.rkey)) < 0){
 		perror("rdma_post_write");
 		exit(-1);
 	}
+	cout << "Message written: " << (char*)msg << endl;
 
 	// Close connection, free memory and communication resources
 	if ((ret = rdma_disconnect(id)) < 0){
