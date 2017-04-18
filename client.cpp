@@ -102,6 +102,7 @@ int main(int argc, char* argv[]){
 		cout << "Message received: " << (char*)msg << endl;
 #endif
 		ibv_ack_cq_events(id->recv_cq, 1);
+		if (cnt > 1000) break;
 	}
 
 	// Close connection, free memory and communication resources
