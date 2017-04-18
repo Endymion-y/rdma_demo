@@ -13,6 +13,11 @@ using namespace std;
 
 const int MSGSIZ = 128;
 
+struct context {
+	struct rdma_cm_id* id;
+	struct ibv_mr* mr;
+};
+
 int main(int argc, char* argv[]){
 	if (argc != 2){
 		cout << "Usage: ./server port" << endl;
@@ -133,9 +138,11 @@ int main(int argc, char* argv[]){
 			}
 			if (wc.opcode == IBV_WC_RECV){
 				// Recv completed
-				struct ibv_mr* mr = (struct ibv_mr*)(wc.wr_id);
+				struct context* ctx = (struct context*)(wc.wr_id);
+				struct rdma_cm_id* id = ctx->id;
+				struct ibv_mr* mr = ctx->mr;
 				// Send back
-				if ((ret = rdma_post_send(conn_id, mr, send_msg, MSGSIZ, mr, 0)) < 0){
+				if ((ret = rdma_post_send(id, ctx, mr->addr, mr->length, mr, 0)) < 0){
 					perror("rdma_post_send");
 					exit(-1);
 				}
@@ -145,7 +152,7 @@ int main(int argc, char* argv[]){
 				// Do nothing
 			}
 		}
-	})
+	});
 
 	// Loop to accept connections
 	while (true){
@@ -181,9 +188,12 @@ int main(int argc, char* argv[]){
 			exit(-1);
 		}
 
+		struct context* ctx = new context;
+		ctx->id = conn_id;
+		ctx->mr = mr;
 		// Post a recv
 		// Set the wr_id as the second parameter
-		if ((rdma_reg_msgs(conn_id, mr, msg, MSGSIZ, mr)) < 0){
+		if ((rdma_reg_msgs(conn_id, ctx, msg, MSGSIZ, mr)) < 0){
 			perror("rdma_reg_msgs");
 			exit(-1);
 		}
