@@ -71,7 +71,7 @@ int main(int argc, char* argv[]){
 	}
 
 	// Create completion channel and completion queue
-	struct ibv_comp_channel* comp_chan = ibv_create_comp_channel(cm_id->verbs);
+	struct ibv_comp_channel* comp_chan = ibv_create_comp_channel(listen_id->verbs);
 	if (!comp_chan) {
 		perror("ibv_create_comp_channel");
 		exit(-1);
