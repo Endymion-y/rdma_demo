@@ -163,6 +163,13 @@ int main(int argc, char* argv[]){
 			exit(-1);
 		}
 
+		// Create PD
+		struct ibv_pd* pd = ibv_alloc_pd(conn_id->verbs);
+		if (!pd){
+			perror("ibv_alloc_pd");
+			exit(-1);
+		}
+
 		// Create QP
 		memset(&qp_init_attr, 0, sizeof(qp_init_attr));
 		qp_init_attr.cap.max_send_wr = 1;
