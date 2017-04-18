@@ -100,7 +100,7 @@ int main(int argc, char* argv[]){
 		
 
 	// Establish socket as listener
-	if ((ret = rdma_listen(id, 1)) < 0){
+	if ((ret = rdma_listen(listen_id, 1)) < 0){
 		perror("rdma_listen");
 		exit(-1);
 	}
@@ -151,7 +151,7 @@ int main(int argc, char* argv[]){
 	while (true){
 		struct rdma_cm_id* conn_id;
 		// Get connection request from client
-		if ((ret = rdma_get_request(id, &conn_id)) < 0){
+		if ((ret = rdma_get_request(listen_id, &conn_id)) < 0){
 			perror("rdma_get_request");
 			exit(-1);
 		}
