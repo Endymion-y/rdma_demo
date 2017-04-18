@@ -64,7 +64,7 @@ int main(int argc, char* argv[]){
 	}
 
 	// Create PD
-	struct ibv_pd pd = ibv_alloc_pd(listen_id->verbs);
+	struct ibv_pd* pd = ibv_alloc_pd(listen_id->verbs);
 	if (!pd){
 		perror("ibv_alloc_pd");
 		exit(-1);
