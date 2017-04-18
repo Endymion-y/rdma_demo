@@ -142,7 +142,7 @@ int main(int argc, char* argv[]){
 				struct rdma_cm_id* id = ctx->id;
 				struct ibv_mr* mr = ctx->mr;
 				// Send back
-				if ((ret = rdma_post_send(id, ctx, mr->addr, mr->length, mr, 0)) < 0){
+				if ((rdma_post_send(id, ctx, mr->addr, mr->length, mr, 0)) < 0){
 					perror("rdma_post_send");
 					exit(-1);
 				}
@@ -175,7 +175,7 @@ int main(int argc, char* argv[]){
 		qp_init_attr.send_cq = cq;
 		qp_init_attr.recv_cq = cq;
 		qp_init_attr.qp_type = IBV_QPT_RC;
-		if ((ret = rdma_create_qp(conn_id, pd, &qp_attr)) < 0){
+		if ((ret = rdma_create_qp(conn_id, pd, &qp_init_attr)) < 0){
 			perror("rdma_create_qp");
 			exit(-1);
 		}
@@ -193,8 +193,8 @@ int main(int argc, char* argv[]){
 		ctx->mr = mr;
 		// Post a recv
 		// Set the wr_id as the second parameter
-		if ((rdma_reg_msgs(conn_id, ctx, msg, MSGSIZ, mr)) < 0){
-			perror("rdma_reg_msgs");
+		if ((rdma_post_recv(conn_id, ctx, msg, MSGSIZ, mr)) < 0){
+			perror("rdma_post_recv");
 			exit(-1);
 		}
 
