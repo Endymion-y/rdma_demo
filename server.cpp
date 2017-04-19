@@ -18,6 +18,23 @@ struct context {
 	struct ibv_mr* mr;
 };
 
+ibv_context* open_default_device() {
+	struct ibv_device** dev_list;
+	struct ibv_device* ib_dev;
+	dev_list = ibv_get_device_list(NULL);
+	if (!dev_list){
+		perror("ibv_get_device_list");
+		exit(-1);
+	}
+	ib_dev = dev_list[0];
+	ibv_context* context = ibv_open_device(ib_dev);
+	if (!context){
+		perror("ibv_open_device");
+		exit(-1);
+	}
+	return context;
+}
+
 int main(int argc, char* argv[]){
 	if (argc != 2){
 		cout << "Usage: ./server port" << endl;
@@ -25,19 +42,6 @@ int main(int argc, char* argv[]){
 	}
 	int ret;
 
-	// Obtain and convert addressing information
-	// char* IP = NULL;
-	// char* port = argv[1];
-	// struct rdma_addrinfo hints;
-	// struct rdma_addrinfo* res;
-
-	// memset(&hints, 0, sizeof(hints));
-	// hints.ai_flags = RAI_PASSIVE;          // Server
-	// hints.ai_port_space = RDMA_PS_TCP;
-	// if ((ret = rdma_getaddrinfo(IP, port, &hints, &res)) < 0){
-	// 	perror("rdma_getaddrinfo");
-	// 	exit(-1);
-	// }
 	struct rdma_event_channel* cm_channel = rdma_create_event_channel();
 	if (!cm_channel){
 		perror("rdma_create_event_channel");
@@ -68,20 +72,23 @@ int main(int argc, char* argv[]){
 		exit(-1);
 	}
 
+	// Open device
+	struct ibv_context* ctx = open_default_device();
+
 	// Create PD
-	struct ibv_pd* pd = ibv_alloc_pd(listen_id->verbs);
+	struct ibv_pd* pd = ibv_alloc_pd(ctx);
 	if (!pd){
 		perror("ibv_alloc_pd");
 		exit(-1);
 	}
 
 	// Create completion channel and completion queue
-	struct ibv_comp_channel* comp_chan = ibv_create_comp_channel(listen_id->verbs);
+	struct ibv_comp_channel* comp_chan = ibv_create_comp_channel(ctx);
 	if (!comp_chan) {
 		perror("ibv_create_comp_channel");
 		exit(-1);
 	}
-	struct ibv_cq* cq = ibv_create_cq(listen_id->verbs, 2, NULL, comp_chan, 0);
+	struct ibv_cq* cq = ibv_create_cq(ctx, 2, NULL, comp_chan, 0);
 	if (!cq) {
 		perror("ibv_create_cq");
 		exit(-1);
@@ -89,20 +96,7 @@ int main(int argc, char* argv[]){
 	if ((ret = ibv_req_notify_cq(cq, 0)) < 0) {
 		perror("ibv_req_notify_cq");
 		exit(-1);
-	}
-
-	// memset(&qp_init_attr, 0, sizeof(qp_init_attr));
-	// qp_init_attr.cap.max_send_wr = 1;
-	// qp_init_attr.cap.max_recv_wr = 1;
-	// qp_init_attr.cap.max_send_sge = 1;
-	// qp_init_attr.cap.max_recv_sge = 1;
-	// qp_init_attr.cap.max_inline_data = MSGSIZ;
-	// qp_init_attr.sq_sig_all = 1;       // Whether send generates CQE
-	// if ((ret = rdma_create_ep(&id, res, NULL, &qp_init_attr)) < 0){
-	// 	perror("rdma_create_ep");
-	// 	exit(-1);
-	// }
-		
+	}	
 
 	// Establish socket as listener
 	if ((ret = rdma_listen(listen_id, 1)) < 0){
