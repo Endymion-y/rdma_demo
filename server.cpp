@@ -42,7 +42,11 @@ int main(int argc, char* argv[]){
 	}
 	int ret;
 
+	// Open device
+	struct ibv_context* ctx = open_default_device();
+
 	struct rdma_event_channel* cm_channel = rdma_create_event_channel();
+	struct rdma_cm_event* event;
 	if (!cm_channel){
 		perror("rdma_create_event_channel");
 		exit(-1);
@@ -72,9 +76,6 @@ int main(int argc, char* argv[]){
 		exit(-1);
 	}
 
-	// Open device
-	struct ibv_context* ctx = open_default_device();
-
 	// Create PD
 	struct ibv_pd* pd = ibv_alloc_pd(ctx);
 	if (!pd){
@@ -103,6 +104,11 @@ int main(int argc, char* argv[]){
 		perror("rdma_listen");
 		exit(-1);
 	}
+	/*if ((rdma_get_cm_event(cm_channel, &event)) < 0){
+		perror("rdma_get_cm_event");
+		exit(-1);
+	}
+	rdma_ack_cm_event(event);*/
 
 	// Start a CQ polling thread
 	thread polling_thread([comp_chan, cq](){
@@ -157,13 +163,6 @@ int main(int argc, char* argv[]){
 			exit(-1);
 		}
 
-		// Create PD
-		struct ibv_pd* pd = ibv_alloc_pd(conn_id->verbs);
-		if (!pd){
-			perror("ibv_alloc_pd");
-			exit(-1);
-		}
-
 		// Create QP
 		memset(&qp_init_attr, 0, sizeof(qp_init_attr));
 		qp_init_attr.cap.max_send_wr = 1;
@@ -204,6 +203,11 @@ int main(int argc, char* argv[]){
 			perror("rdma_accept");
 			exit(-1);
 		}
+		if ((rdma_get_cm_event(cm_channel, &event)) < 0){
+			perror("rdma_get_cm_event");
+			exit(-1);
+		}
+		rdma_ack_cm_event(event);
 	}
 
 	// Seems not possible to break connection and reclaim resources
