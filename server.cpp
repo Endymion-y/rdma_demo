@@ -7,6 +7,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <map>
 
 #include <rdma/rdma_cma.h>
 #include <rdma/rdma_verbs.h>
@@ -21,7 +22,7 @@ struct context {
 	struct ibv_mr* mr;
 };
 
-map<int, context*> table_;
+map<uintptr_t, context*> table_;
 
 ibv_context* open_default_device() {
 	struct ibv_context** dev_list;
@@ -37,10 +38,10 @@ ibv_context* open_default_device() {
 }
 
 int main(int argc, char* argv[]){
-	if (argc != 2){
+	/*if (argc != 2){
 		cout << "Usage: ./server port" << endl;
 		return 0;
-	}
+	}*/
 	int ret;
 
 	// Open device
@@ -68,8 +69,8 @@ int main(int argc, char* argv[]){
 	memset(&sin, 0, sizeof(sin));
 
 	sin.sin_family = AF_INET;
-	// sin.sin_port = htons(50051);
-	sin.sin_port = htons(atol(argv[1]));
+	sin.sin_port = htons(50051);
+	// sin.sin_port = htons(atol(argv[1]));
 	sin.sin_addr.s_addr = INADDR_ANY;
 
 	// Bind to local port and listen for connection request
@@ -178,7 +179,7 @@ int main(int argc, char* argv[]){
 		// Can be connection request or disconnection request
 		if (event->event == RDMA_CM_EVENT_DISCONNECTED){
 			rdma_cm_id* id = event->id;
-			context* ctx = table_[(int)id];
+			context* ctx = table_[(uintptr_t)id];
 			rdma_disconnect(id);
 			// Deregister
 			if ((rdma_dereg_mr(ctx->mr)) < 0){
@@ -188,13 +189,10 @@ int main(int argc, char* argv[]){
 			// Free memory
 			free(ctx->msg);
 			// Destroy endpoint
-			if ((rdma_destroy_ep(id)) < 0){
-				perror("rdma_destroy_ep");
-				exit(-1);
-			}
+			rdma_destroy_ep(id);
 			// Reclaim context
 			delete ctx;
-			table_.erase((int)id);
+			table_.erase((uintptr_t)id);
 			cout << "Disconnected" << endl;
 			continue;
 		}
@@ -236,7 +234,7 @@ int main(int argc, char* argv[]){
 		ctx->msg = msg;
 		ctx->size = MSGSIZ;
 		ctx->mr = mr;
-		table_[(int)conn_id] = ctx;
+		table_[(uintptr_t)conn_id] = ctx;
 
 		// Post a recv
 		// Set the wr_id as the second parameter
