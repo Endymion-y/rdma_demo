@@ -5,10 +5,13 @@
 #include <netdb.h>
 #include <memory>
 #include <chrono>
+#include <unistd.h>
 
 #include <rdma/rdma_cma.h>
 #include <rdma/rdma_verbs.h>
 using namespace std;
+
+#define LOGGING
 
 const int MSGSIZ = 128;
 
@@ -62,6 +65,7 @@ int main(int argc, char* argv[]){
 		perror("rdma_connect");
 		exit(-1);
 	}
+	cout << "Connected" << endl;
 
 	// Actually transfer data to/from the remote side
 	struct ibv_wc wc;
@@ -102,7 +106,8 @@ int main(int argc, char* argv[]){
 		cout << "Message received: " << (char*)msg << endl;
 #endif
 		ibv_ack_cq_events(id->recv_cq, 1);
-		if (cnt > 1000) break;
+		if (cnt > 100) break;
+		sleep(1);
 	}
 
 	// Close connection, free memory and communication resources

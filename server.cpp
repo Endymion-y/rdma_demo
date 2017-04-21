@@ -6,6 +6,7 @@
 #include <netdb.h>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <rdma/rdma_cma.h>
 #include <rdma/rdma_verbs.h>
@@ -19,19 +20,15 @@ struct context {
 };
 
 ibv_context* open_default_device() {
-	struct ibv_device** dev_list;
-	struct ibv_device* ib_dev;
-	dev_list = ibv_get_device_list(NULL);
+	struct ibv_context** dev_list;
+	struct ibv_context* context;
+	dev_list = rdma_get_devices(NULL);
 	if (!dev_list){
 		perror("ibv_get_device_list");
 		exit(-1);
 	}
-	ib_dev = dev_list[0];
-	ibv_context* context = ibv_open_device(ib_dev);
-	if (!context){
-		perror("ibv_open_device");
-		exit(-1);
-	}
+	context = dev_list[0];
+	rdma_free_devices(dev_list);
 	return context;
 }
 
@@ -67,7 +64,8 @@ int main(int argc, char* argv[]){
 	memset(&sin, 0, sizeof(sin));
 
 	sin.sin_family = AF_INET;
-	sin.sin_port = htons(50051);
+	// sin.sin_port = htons(50051);
+	sin.sin_port = htons(atol(argv[1]));
 	sin.sin_addr.s_addr = INADDR_ANY;
 
 	// Bind to local port and listen for connection request
@@ -134,8 +132,8 @@ int main(int argc, char* argv[]){
 				return;
 			}
 			if (wc.status != IBV_WC_SUCCESS){
-				perror("wc.status");
-				return;
+				// Possibly disconnected. Continue.
+				continue;
 			}
 			if (wc.opcode == IBV_WC_RECV){
 				// Recv completed
@@ -145,6 +143,12 @@ int main(int argc, char* argv[]){
 				// Send back
 				if ((rdma_post_send(id, ctx, mr->addr, mr->length, mr, 0)) < 0){
 					perror("rdma_post_send");
+					exit(-1);
+				}
+
+				// Post Recv again
+				if ((rdma_post_recv(id, ctx, mr->addr, mr->length, mr)) < 0){
+					perror("rdma_post_recv");
 					exit(-1);
 				}
 			}
@@ -167,10 +171,16 @@ int main(int argc, char* argv[]){
 			perror("rdma_get_cm_event");
 			exit(-1);
 		}
-		if (event->event != RDMA_CM_EVENT_CONNECT_REQUEST){
-			cerr << "Incorrect event" << endl;
-			exit(-1);
+		// Can be connection request or disconnection request
+		if (event->event == RDMA_CM_EVENT_DISCONNECTED){
+			rdma_disconnect(event->id);
+			cout << "Disconnected" << endl;
+			continue;
 		}
+		if (event->event != RDMA_CM_EVENT_CONNECT_REQUEST){
+			continue;
+		}
+		conn_id = event->id;
 		rdma_ack_cm_event(event);
 
 		cout << hex << "pd = " << pd << endl;
