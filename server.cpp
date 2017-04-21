@@ -75,6 +75,7 @@ int main(int argc, char* argv[]){
 		perror("rdma_bind_addr");
 		exit(-1);
 	}
+	cout << hex << "listen_id->pd = " << listen_id->pd << endl;
 
 	// Create PD
 	struct ibv_pd* pd = ibv_alloc_pd(ctx);
@@ -158,10 +159,22 @@ int main(int argc, char* argv[]){
 	while (true){
 		struct rdma_cm_id* conn_id;
 		// Get connection request from client
-		if ((ret = rdma_get_request(listen_id, &conn_id)) < 0){
+		/*if ((ret = rdma_get_request(listen_id, &conn_id)) < 0){
 			perror("rdma_get_request");
 			exit(-1);
+		}*/
+		if ((rdma_get_cm_event(cm_channel, &event)) < 0){
+			perror("rdma_get_cm_event");
+			exit(-1);
 		}
+		if (event->event != RDMA_CM_EVENT_CONNECT_REQUEST){
+			cerr << "Incorrect event" << endl;
+			exit(-1);
+		}
+		rdma_ack_cm_event(event);
+
+		cout << hex << "pd = " << pd << endl;
+		cout << hex << "conn_id->pd = " << conn_id->pd << endl;
 
 		// Create QP
 		memset(&qp_init_attr, 0, sizeof(qp_init_attr));
