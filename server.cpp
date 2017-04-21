@@ -16,8 +16,12 @@ const int MSGSIZ = 128;
 
 struct context {
 	struct rdma_cm_id* id;
+	void* msg;
+	size_t size;
 	struct ibv_mr* mr;
 };
+
+map<int, context*> table_;
 
 ibv_context* open_default_device() {
 	struct ibv_context** dev_list;
@@ -147,7 +151,7 @@ int main(int argc, char* argv[]){
 				}
 
 				// Post Recv again
-				if ((rdma_post_recv(id, ctx, mr->addr, mr->length, mr)) < 0){
+				if ((rdma_post_recv(id, ctx, ctx->msg, ctx->size, mr)) < 0){
 					perror("rdma_post_recv");
 					exit(-1);
 				}
@@ -173,7 +177,24 @@ int main(int argc, char* argv[]){
 		}
 		// Can be connection request or disconnection request
 		if (event->event == RDMA_CM_EVENT_DISCONNECTED){
-			rdma_disconnect(event->id);
+			rdma_cm_id* id = event->id;
+			context* ctx = table_[(int)id];
+			rdma_disconnect(id);
+			// Deregister
+			if ((rdma_dereg_mr(ctx->mr)) < 0){
+				perror("rdma_dereg_mr");
+				exit(-1);
+			}
+			// Free memory
+			free(ctx->msg);
+			// Destroy endpoint
+			if ((rdma_destroy_ep(id)) < 0){
+				perror("rdma_destroy_ep");
+				exit(-1);
+			}
+			// Reclaim context
+			delete ctx;
+			table_.erase((int)id);
 			cout << "Disconnected" << endl;
 			continue;
 		}
@@ -183,8 +204,7 @@ int main(int argc, char* argv[]){
 		conn_id = event->id;
 		rdma_ack_cm_event(event);
 
-		cout << hex << "pd = " << pd << endl;
-		cout << hex << "conn_id->pd = " << conn_id->pd << endl;
+		cout << "Got a request: id = " << conn_id << endl;
 
 		// Create QP
 		memset(&qp_init_attr, 0, sizeof(qp_init_attr));
@@ -213,7 +233,11 @@ int main(int argc, char* argv[]){
 
 		struct context* ctx = new context;
 		ctx->id = conn_id;
+		ctx->msg = msg;
+		ctx->size = MSGSIZ;
 		ctx->mr = mr;
+		table_[(int)conn_id] = ctx;
+
 		// Post a recv
 		// Set the wr_id as the second parameter
 		if ((rdma_post_recv(conn_id, ctx, msg, MSGSIZ, mr)) < 0){
@@ -232,8 +256,6 @@ int main(int argc, char* argv[]){
 		}
 		rdma_ack_cm_event(event);
 	}
-
-	// Seems not possible to break connection and reclaim resources
 
 	return 0;
 }
